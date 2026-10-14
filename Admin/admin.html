@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f3f6f8" />
+    <title>Administración de envíos | JL Express</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="admin.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+    <script src="supabase.js" defer></script>
+    <script src="admin.js" defer></script>
+  </head>
+  <body>
+    <div class="admin-shell">
+      <header class="topbar">
+        <a class="brand" href="../index.html" aria-label="JL Express, página principal">
+          <img
+            class="brand-mark"
+            src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRndonklgS3Yn9cFRm3AP_8DRMhabAHCRXiYNvRyaHirw&amp;s"
+            alt=""
+          />
+          <span class="brand-name">JL <strong>EXPRESS</strong></span>
+        </a>
+        <div class="topbar-divider" aria-hidden="true"></div>
+        <p class="topbar-title">Administración</p>
+        <div class="topbar-actions">
+          <button class="button button-secondary theme-toggle" id="theme-toggle" type="button" aria-pressed="false" aria-label="Activar modo oscuro">
+            <span class="theme-icon" aria-hidden="true">☾</span>
+            <span class="theme-label">Modo oscuro</span>
+          </button>
+          <button class="button button-secondary users-button" id="show-admin-users" type="button" hidden>Usuarios</button>
+          <button class="button button-secondary sign-out-button" id="sign-out" type="button" hidden>Cerrar sesión</button>
+          <a class="back-link" href="../index.html">Volver al sitio <span aria-hidden="true">↗</span></a>
+        </div>
+      </header>
+
+      <main class="auth-panel" id="auth-panel">
+        <section class="auth-card" aria-labelledby="auth-title">
+          <p class="eyebrow"><span></span> ACCESO SEGURO</p>
+          <h1 id="auth-title">Administración de envíos</h1>
+          <p class="page-description">Inicia sesión con una cuenta autorizada para continuar.</p>
+          <form id="login-form">
+            <label class="form-field" for="login-email">Correo electrónico
+              <input id="login-email" name="email" type="email" autocomplete="username" required />
+            </label>
+            <label class="form-field" for="login-password">Contraseña
+              <input id="login-password" name="password" type="password" autocomplete="current-password" required />
+            </label>
+            <p class="auth-message" id="auth-message" role="status" aria-live="polite"></p>
+            <button class="button button-primary" id="login-submit" type="submit">Iniciar sesión</button>
+          </form>
+        </section>
+      </main>
+
+      <main class="workspace" id="admin-workspace" hidden>
+        <section class="page-heading" aria-labelledby="page-title">
+          <div>
+            <p class="eyebrow"><span></span> OPERACIONES</p>
+            <h1 id="page-title">Envíos</h1>
+            <p class="page-description">Consulta y administra los envíos de JL Express.</p>
+          </div>
+          <div class="order-count" aria-live="polite">
+            <span class="count-dot" aria-hidden="true"></span>
+            <span id="result-count">0 envíos</span>
+          </div>
+        </section>
+
+        <section class="orders-panel" aria-label="Administración de envíos">
+          <div class="toolbar">
+            <div class="toolbar-actions">
+              <button class="button button-primary" id="add-order" type="button">
+                <span class="button-icon" aria-hidden="true">＋</span> Agregar envío
+              </button>
+              <button class="button button-secondary" id="import-orders" type="button" title="El ID de la columna A se ignora; Supabase genera id_excel automáticamente.">
+                <span class="button-icon import-icon" aria-hidden="true">↑</span> Importar Excel
+              </button>
+              <button class="button button-secondary refresh-button" id="refresh-orders" type="button" title="Actualizar la tabla desde Supabase">
+                <span class="button-icon" aria-hidden="true">↻</span> Actualizar
+              </button>
+              <input id="excel-file" type="file" accept=".xlsx,.xls,.csv" hidden />
+            </div>
+            <div class="toolbar-filters">
+              <label class="search-box" for="order-search">
+                <span class="search-icon" aria-hidden="true"></span>
+                <input
+                  id="order-search"
+                  type="search"
+                  placeholder="Buscar por ID, tracking, cliente, teléfono, dirección o localidad..."
+                  autocomplete="off"
+                  aria-label="Buscar en todos los envíos"
+                />
+                <kbd>Ctrl F</kbd>
+              </label>
+              <label class="select-wrap" for="order-view">
+                <span class="sr-only">Mostrar envíos</span>
+                <select id="order-view">
+                  <option value="active">Envíos activos</option>
+                  <option value="history">Historial</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="table-meta">
+            <span id="view-label">Envíos activos</span>
+            <span class="table-hint">Clic derecho sobre un envío para ver acciones</span>
+          </div>
+          <div class="table-scroll-top" id="table-scroll-top" aria-hidden="true">
+            <div class="table-scroll-spacer" id="table-scroll-spacer"></div>
+          </div>
+          <div class="table-viewport" tabindex="0" aria-label="Tabla de envíos, desplázate horizontalmente para ver todas las columnas">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col" aria-sort="ascending"><button class="sort-button" type="button" data-sort="id_excel">ID Excel</button></th>
+                  <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort="tracking_code">Tracking code</button></th>
+                  <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort="cliente_nombre">Cliente</button></th>
+                  <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort="cliente_telefono">Teléfono</button></th>
+                  <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort="direccion_entrega">Dirección de entrega</button></th>
+                  <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort="localidad">Localidad</button></th>
+                  <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort="estado">Estado</button></th>
+                  <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort="fecha_creacion">Fecha de creación</button></th>
+                  <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort="ultima_actualizacion">Última actualización</button></th>
+                  <th scope="col" aria-sort="none"><button class="sort-button" type="button" data-sort="notificacion_pendiente">Notificación pendiente</button></th>
+                </tr>
+              </thead>
+              <tbody id="orders-body"></tbody>
+            </table>
+            <div class="empty-state" id="empty-state" hidden>
+              <span class="empty-icon" aria-hidden="true">⌕</span>
+              <strong>No encontramos envíos</strong>
+              <span id="empty-message">Prueba otra búsqueda o agrega un envío nuevo.</span>
+            </div>
+          </div>
+          <div class="table-footer">
+            <span>JL Express <span aria-hidden="true">·</span> Gestión de envíos</span>
+            <span id="table-summary">Datos de demostración</span>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="context-backdrop" id="context-backdrop" hidden></div>
+    <div class="context-menu" id="context-menu" role="menu" aria-label="Acciones del envío" hidden>
+      <button type="button" role="menuitem" data-action="edit"><span aria-hidden="true">✎</span> Editar envío</button>
+      <button type="button" role="menuitem" data-action="status"><span aria-hidden="true">↻</span> Cambiar estado</button>
+      <button type="button" role="menuitem" data-action="finalize"><span aria-hidden="true">✓</span> Finalizar pedido</button>
+      <button type="button" role="menuitem" data-action="reactivate" hidden><span aria-hidden="true">↶</span> Reactivar pedido</button>
+      <button class="danger-action" type="button" role="menuitem" data-action="delete"><span aria-hidden="true">⌫</span> Borrar envío</button>
+    </div>
+
+    <dialog class="order-dialog" id="order-dialog" aria-labelledby="dialog-title">
+      <form id="order-form">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow"><span></span> ENVÍOS</p>
+            <h2 id="dialog-title">Agregar envío</h2>
+          </div>
+          <button class="icon-button" id="close-dialog" type="button" aria-label="Cerrar">×</button>
+        </div>
+        <div class="form-grid">
+          <label class="form-field" for="field-id">ID (automático)<input id="field-id" name="id_excel" readonly /></label>
+          <label class="form-field" for="field-tracking">Tracking code<input id="field-tracking" name="tracking_code" required /></label>
+          <label class="form-field" for="field-name">Nombre del cliente<input id="field-name" name="cliente_nombre" /></label>
+          <label class="form-field" for="field-phone">Teléfono<input id="field-phone" name="cliente_telefono" type="tel" /></label>
+          <label class="form-field form-field-wide" for="field-address">Dirección de entrega<input id="field-address" name="direccion_entrega" /></label>
+          <label class="form-field" for="field-locality">Localidad<input id="field-locality" name="localidad" /></label>
+        </div>
+        <div class="dialog-actions">
+          <button class="button button-secondary" id="cancel-dialog" type="button">Cancelar</button>
+          <button class="button button-primary" type="submit">Guardar envío</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="users-dialog" id="users-dialog" aria-labelledby="users-dialog-title">
+      <div class="users-dialog-content">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow"><span></span> ACCESO</p>
+            <h2 id="users-dialog-title">Usuarios permitidos</h2>
+          </div>
+          <button class="icon-button" id="close-users-dialog" type="button" aria-label="Cerrar">×</button>
+        </div>
+        <p class="users-description">Se considera conectado si hay actividad en los últimos 90 segundos.</p>
+        <p class="users-message" id="users-message" role="status" aria-live="polite"></p>
+        <div class="users-table-viewport">
+          <table class="users-table">
+            <thead>
+              <tr>
+                <th scope="col">Correo</th>
+                <th scope="col">Estado</th>
+                <th scope="col">Última conexión</th>
+              </tr>
+            </thead>
+            <tbody id="admin-users-body"></tbody>
+          </table>
+        </div>
+        <div class="dialog-actions">
+          <button class="button button-secondary" id="refresh-admin-users" type="button">Actualizar</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog class="customer-update-dialog" id="customer-update-dialog" aria-labelledby="customer-update-title">
+      <div class="customer-update-content">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow"><span></span> IMPORTACIÓN DE EXCEL</p>
+            <h2 id="customer-update-title">Actualizar datos del cliente</h2>
+          </div>
+          <button class="icon-button" id="close-customer-update" type="button" aria-label="Cerrar">×</button>
+        </div>
+        <p class="customer-update-message" id="customer-update-message"></p>
+        <ul class="customer-update-list" id="customer-update-list"></ul>
+        <p class="customer-update-note">El estado de los paquetes se actualizará de todas formas.</p>
+        <div class="dialog-actions">
+          <button class="button button-secondary" id="keep-customer-data" type="button">Dejar como está</button>
+          <button class="button button-primary" id="apply-customer-data" type="button">Actualizar datos</button>
+        </div>
+      </div>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true">
+      <span class="toast-message" id="toast-message"></span>
+      <button class="toast-action" id="toast-action" type="button" aria-haspopup="dialog" aria-controls="customer-update-dialog" hidden></button>
+    </div>
+  </body>
+</html>
